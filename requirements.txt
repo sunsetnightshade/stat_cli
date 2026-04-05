@@ -3,7 +3,6 @@ pandas
 scikit-learn
 seaborn
 matplotlib
-yfinance
 websockets
 redis
 pyarrow

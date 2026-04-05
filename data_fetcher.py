@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import os
 import time
 from datetime import date
 from typing import Iterable
 
 import pandas as pd
-import yfinance as yf
+
+
+def _legacy_yfinance_enabled() -> bool:
+    return os.getenv("QM_ENABLE_LEGACY_YFINANCE", "0").strip() == "1"
 
 
 def fetch_adj_close_prices(
@@ -17,9 +21,28 @@ def fetch_adj_close_prices(
     sleep_seconds: float = 2.0,
 ) -> pd.DataFrame:
     """
-    Fetch Adj Close prices for the given tickers over [start_date, end_date).
-    Implements a strict retry loop to handle yfinance throttling.
+    LEGACY PATH ONLY.
+    Historical yfinance fetch is disabled by default because this project now
+    uses websocket -> Redis Streams for TYPE1 live data.
+
+    To temporarily re-enable this legacy path, set:
+      QM_ENABLE_LEGACY_YFINANCE=1
     """
+    if not _legacy_yfinance_enabled():
+        raise RuntimeError(
+            "Legacy yfinance path is disabled. Use websocket live ingestion instead: "
+            "'py main.py --ingest-live'. To force-enable old behavior, set "
+            "QM_ENABLE_LEGACY_YFINANCE=1."
+        )
+
+    try:
+        import yfinance as yf  # type: ignore
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "yfinance is not installed. This path is legacy-only; prefer websocket "
+            "live ingestion commands."
+        ) from exc
+
     ticker_list = list(dict.fromkeys(tickers))  # preserve order, drop duplicates
     last_exc: Exception | None = None
 
