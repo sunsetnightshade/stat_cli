@@ -1,78 +1,179 @@
-﻿# Quant Matrix CLI
+# Quant Matrix CLI
 
-Quant Matrix CLI builds a synchronized log-return matrix for NIFTY IT and NASDAQ mega-cap tickers, applies a strict zombie-ticker replacement policy, standardizes the result, and preserves the latest scaler & matrix for downstream analysis. It also renders a correlation heatmap so you can visualize the normalized relationships across markets.
+A highly structured, production-ready market data pipeline for **30 NASDAQ-100 US tech stocks**. It builds a Z-score standardized matrix with automatic correlation analysis, zombie ticker detection, and both batch and live WebSocket modes.
 
-## What the pipeline does
-1. `data_fetcher.py` downloads adjusted close prices for the configured tickers using `yfinance`.
-2. `data_cleaner.py` drops primary tickers with >5% missing data, swaps in reserve tickers to keep a 30-column matrix, and linearly interpolates small gaps.
-3. `matrix_math.py` converts prices to log returns, shifts U.S. columns by one day to align with Indian trading, and drops any remaining NaNs.
-4. `standardizer.py` z-scores every column, saves the scaler parameters, and exports a 30×T aligned matrix heatmap image (tickers × days).
-5. `main.py` orchestrates the process, saves the standardized matrix/history snapshots to `storage/`, also writes Excel-friendly `30×T` CSVs to `outputs/`, and prints summary paths plus any zombie replacements.
+---
 
-## Repository layout
-- `main.py` – command-line entry point with `--build` and `--verify` flags.
-- `config.py` – ticker lists and default [start_date, end_date) window (last two years by default).
-- `data_fetcher.py` – resilient `yfinance` download with retries and column alignment.
-- `data_cleaner.py` – enforces the 30-ticker rule, drops zombies, and applies replacements.
-- `matrix_math.py` – log-return builder with NYC-to-India alignment.
-- `standardizer.py` – scales, stores scaler metadata, and exports `correlation_heatmap.png`.
-- `storage/` – runtime output (current matrix, backups, scaler params).
-- `outputs/latest/` – latest heatmap + accessible `30×T` CSVs.
-- `outputs/archive/` – dated snapshots of the accessible `30×T` CSVs.
+## ⚡ Quick Start 
 
-## Prerequisites (Windows)
-1. Install Python 3.10+ from [python.org][1] and ensure `python` is on your PATH.
-2. (Optional but recommended) Install Git for Windows to manage source control and push changes.
-3. Ensure Internet access so `yfinance` can reach Yahoo Finance.
+The software has been heavily optimized so you don't need to learn a complex CLI or pass 10 different flags just to build your data. 
 
-## Local setup and execution
-```powershell
-cd path\\to\\quant_matrix_cli
+**Run these 3 steps:**
+
+**1. Setup your environment (first time only)**
+```bash
+git clone https://github.com/sunsetnightshade/stat_cli.git
+cd stat_cli
+
+# Create a virtual environment
 python -m venv .venv
-.\\.venv\\Scripts\\Activate
-python -m pip install --upgrade pip
-pip install pandas numpy scipy scikit-learn seaborn matplotlib yfinance
+
+# Activate it (Windows):
+.venv\Scripts\activate
+# OR Activate it (Linux/Mac):
+source .venv/bin/activate
+
+pip install -r requirements.txt
 ```
 
-> Alternatively, once you add a `requirements.txt`, replace the last command with `pip install -r requirements.txt`.
+**2. Build the matrix (Fetches data, formats, standardizes, creates heatmaps)**
+```bash
+python main.py
+```
 
-### Run the pipeline
+**3. Open the visual dashboard**
+```bash
+python -m streamlit run app.py
+```
+
+That's it! If you ran `python main.py`, your fresh heatmaps and CSVs immediately appear in the **`outputs/latest/`** folder. 
+
+---
+
+## 🛠 Command Guide & Expected Outputs
+
+### Command 1: The Core Pipeline Builder
+Command: `py main.py`
+
+**What it does:**
+1. Connects to the data provider and fetches a 2-year history for all 30 US Tech stocks.
+2. Runs a **Zombie Sweeper**: Identifies any ticker missing >5% of its data, throws it out, and dynamically replaces it with a healthy reserve ticker.
+3. Aligns the data into a strict 30xT matrix, ignoring market holidays, then calculates the pure Log Return matrix.
+4. Z-Score standardizes the entire grid.
+5. Emits heatmaps and machine-readable data files.
+6. **Smart-Archives**: Identifies whatever was previously in your `outputs/latest/` folder and moves it to `outputs/archive/<timestamp>/` so you never mix up an old run with a new run.
+
+**The Output Structure You Will See:**
+When you run `py main.py`, you will see a highly structured, Unicode-safe readout in your terminal:
+```text
+=================================================================
+|        QUANT MATRIX  --  NASDAQ-100 Tech (30 Stocks)          |
+=================================================================
+
+-----------------------------------------------------------------
+  Building Quant Matrix
+-----------------------------------------------------------------
+  [INFO] Date range : 2024-04-09 -> 2026-04-09
+  [INFO] Tickers    : 30 primary + 5 reserve
+  [OK]   All 30 tickers healthy - no zombies detected
+
+-----------------------------------------------------------------
+  Outputs Saved
+-----------------------------------------------------------------
+  [OK]   Matrix heatmap        : outputs/latest/matrix_heatmap.png
+  [OK]   Correlation heatmap   : outputs/latest/correlation_heatmap.png
+  [OK]   Standardized CSV      : outputs/latest/standardized_matrix_30xT.csv
+  [OK]   Usage guide           : outputs/latest/GUIDE.md
+  [OK]   Current matrix pickle : storage/current_matrix.pkl
+```
+
+**Where the data goes (What the outputs mean):**
+Inside `outputs/latest/` you will find:
+- **`matrix_heatmap.png`**: Every row is a stock, every column is a day. Bright Red = overperforming standard deviation. Deep Blue = underperforming.
+- **`correlation_heatmap.png`**: A 30x30 grid proving how correlated the US tech sector is. If you see deep blue squares, that stock broke correlation pattern.
+- **`standardized_matrix_30xT.csv`**: The exact numerical Z-score standard grid you can import into Excel, R, or Python.
+- **`GUIDE.md`**: An auto-generated English instruction manual placed inside the folder that explains the files to whichever analyst is reading the folder.
+
+### Command 2: The Visual Dashboard
+Command: `py -m streamlit run app.py`
+
+**What it does:**
+Bootstraps a local visual interface in your browser containing 4 tabs:
+1. **Build Tab**: Run the pipeline directly from the browser instead of the command line. Allows you to set specific date ranges.
+2. **Matrix Tab**: See the 30xT Matrix Heatmap visually rendered, and download the CSV.
+3. **Correlation Tab**: Features an active slider where you can flag pairs below a certain threshold.
+4. **Archive Tab**: Visually explore past data runs! Select any historical timestamp and preview what the market looked like exactly on that run.
+
+### Command 3: System Verification
+Command: `py main.py --verify`
+
+**What it does:**
+Checks your local environment and outputs a checklist ensuring all critical files (Heatmaps, Parquet stores, Data Params) actually exist on disk and aren't corrupted.
+
+---
+
+## 🏗 System Architecture
+
+### 1. Data Pipeline Flow
+
+```mermaid
+flowchart LR
+    subgraph "Data Pipeline Flow (Batch Process)"
+        FETCH["Fetch Adj Close<br/>(2-year window)"]
+        CLEAN["Zombie Ticker<br/>Detection >5% NaN"]
+        INTERP["Linear Interpolation<br/>(≤2 day gaps)"]
+        LOG["Log Returns<br/>ln(Pt / Pt-1)"]
+        ZSCORE["Z-Score<br/>StandardScaler"]
+    end
+
+    subgraph "Archival Output Engine"
+        HEAT["Matrix Heatmap<br/>30xT PNG"]
+        CORR["Correlation Heatmap<br/>30x30 PNG"]
+        CSV["CSV Exports<br/>Grid orientation"]
+        GUIDE["GUIDE.md<br/>+ metadata"]
+    end
+
+    FETCH --> CLEAN --> INTERP --> LOG --> ZSCORE
+    ZSCORE --> HEAT & CORR & CSV & GUIDE
+```
+
+### 2. Folder Layout & Organization
+The software leverages an organizational structure so raw logs never mix with artifacts.
+
+```mermaid
+graph TD
+    subgraph "Entrypoints"
+        MAIN["main.py (The execution core)"]
+        APP["app.py (The visual dashboard)"]
+    end
+
+    subgraph "File System"
+        STORAGE["storage/"]
+        LATEST["outputs/latest/"]
+        ARCHIVE["outputs/archive/"]
+    end
+    
+    MAIN -->|Overwrites current matrix| STORAGE
+    MAIN -->|Generates fresh readable artifacts| LATEST
+    MAIN -->|Rotates past artifacts safely away| ARCHIVE
+```
+
+---
+
+## 📡 Live Ingestion Setup (Optional)
+
+If you are using real-time WebSockets, Quant Matrix also supports streaming infrastructure. WebSockets snap ticks into 1-minute OHLCV bars hosted in Redis.
+
+**Prerequisites:** Redis running on `127.0.0.1:6379` + Valid Twelve Data or Polygon Key.
+
 ```powershell
-python main.py --build
-```
-- Downloads prices for the configured tickers (primary + reserve bench).
-- Cleans zombies, builds returns, standardizes, and saves:
-  - `storage/current_matrix.pkl`
-  - `storage/matrix_YYYY_MM_DD.pkl` (daily backup)
-  - `storage/scaler_params.pkl`
-  - `outputs/latest/matrix_heatmap.png`
-  - `outputs/latest/aligned_log_returns_30xT.csv`
-  - `outputs/latest/standardized_matrix_30xT.csv`
+# Set your environment
+set QM_ENABLE_LIVE_INGEST=1
+set QM_LIVE_PROVIDER=twelvedata
+set TWELVEDATA_API_KEY=your_twelvedata_key
 
-### Verify outputs without rebuilding
+# 1. Start the permanent ingestion loop
+py main.py --ingest-live
+
+# 2. Build an analytics snapshot
+py main.py --snapshot-live
+
+# 3. Persist memory bars to Parquet for backup
+py main.py --persist-live-hourly
+```
+
+## 🧪 Running Tests
+The suite has 45 passing tests covering memory stability, data math, configuration integrity, and timestamp logic.
 ```powershell
-python main.py --verify
+py -m unittest discover -s tests -p "test_*.py" -v
 ```
-Checks that `storage/current_matrix.pkl` and `storage/scaler_params.pkl` exist.
-
-## Configuration
-- Edit `config.py` to customize `PRIMARY_TICKERS`, `RESERVE_BENCH`, `START_DATE`, or `END_DATE`. The pipeline uses the frozen `PipelineConfig` dataclass when instantiated.
-
-## Zombie replacement logic
-- Any primary ticker with >5% missing data is removed and replaced with the next available reserve that is not already a primary.
-- The replacement keeps the original primary order and maintains 30 columns total.
-- After replacements, the dataframe interpolates any remaining short gaps before computing returns.
-
-## Data science artifacts
-- The standardized matrix stores z-scores (zero mean, unit variance) for each ticker over the synced window.
-- Scaler parameters are persisted so you can standardize new data with the same transformation outside this CLI.
-- Correlation heatmap visualizes how the standardized returns co-move after alignment.
-
-## GitHub workflow hints
-1. `git init` (if not already a repo) and commit the source + README.
-2. `git remote add origin https://github.com/sunsetnightshade/stat_cli.git`.
-3. Push your branch and open a pull request from that branch to the target repository.
-4. Share the PR URL back here when ready.
-
-Let me know if you want me to draft the PR description or add CI/formatting guidance.
-[1]: https://www.python.org

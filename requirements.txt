@@ -1,0 +1,15 @@
+# Core pipeline
+numpy
+pandas
+scikit-learn
+matplotlib
+seaborn
+pyarrow
+
+# Dashboard
+streamlit
+
+# Live ingestion (optional — only needed for --ingest-live / --snapshot-live)
+websockets
+redis
+pyzmq
