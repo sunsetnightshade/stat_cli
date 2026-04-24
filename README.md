@@ -49,7 +49,7 @@ Command: `py main.py`
 1. Connects to the data provider and fetches a 2-year history for all 30 US Tech stocks.
 2. Runs a **Zombie Sweeper**: Identifies any ticker missing >5% of its data, throws it out, and dynamically replaces it with a healthy reserve ticker.
 3. Aligns the data into a strict 30xT matrix, ignoring market holidays, then calculates the pure Log Return matrix.
-4. Z-Score standardizes the entire grid.
+4. Runs a **Causal 60-day Rolling Z-Score** to standardize the entire grid with zero look-ahead bias.
 5. Emits heatmaps and machine-readable data files.
 6. **Smart-Archives**: Identifies whatever was previously in your `outputs/latest/` folder and moves it to `outputs/archive/<timestamp>/` so you never mix up an old run with a new run.
 
@@ -92,7 +92,8 @@ Bootstraps a local visual interface in your browser containing 4 tabs:
 1. **Build Tab**: Run the pipeline directly from the browser instead of the command line. Allows you to set specific date ranges.
 2. **Matrix Tab**: See the 30xT Matrix Heatmap visually rendered, and download the CSV.
 3. **Correlation Tab**: Features an active slider where you can flag pairs below a certain threshold.
-4. **Archive Tab**: Visually explore past data runs! Select any historical timestamp and preview what the market looked like exactly on that run.
+4. **PCA Tab**: Decompose returns into Beta (Systematic) and Alpha (Idiosyncratic) components using a strict causal sliding window EVD to prevent look-ahead bias.
+5. **Archive Tab**: Visually explore past data runs! Select any historical timestamp and preview what the market looked like exactly on that run.
 
 ### Command 3: System Verification
 Command: `py main.py --verify`
@@ -113,7 +114,7 @@ flowchart LR
         CLEAN["Zombie Ticker<br/>Detection >5% NaN"]
         INTERP["Linear Interpolation<br/>(≤2 day gaps)"]
         LOG["Log Returns<br/>ln(Pt / Pt-1)"]
-        ZSCORE["Z-Score<br/>StandardScaler"]
+        ZSCORE["Causal Z-Score<br/>(60-day Rolling)"]
     end
 
     subgraph "Archival Output Engine"
