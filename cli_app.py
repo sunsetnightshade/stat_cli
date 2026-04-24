@@ -11,7 +11,7 @@ from typing import Any
 import pandas as pd
 
 from pipeline import PipelineArtifacts, build_and_serialize
-from pca_tools import pca_beta_alpha, pca_fit_summary
+from pca_engine import rolling_pca_alpha_beta, rolling_pca_summary
 
 
 import subprocess
@@ -159,13 +159,13 @@ def run_interactive_cli(*, root_dir: Path) -> int:
 
             k_str = input("How many PCs to treat as Beta? [default=1]: ").strip()
             k = 1 if not k_str else int(k_str)
-            summary = pca_fit_summary(df, n_components=min(max(k, 1), df.shape[1]))
+            summary = rolling_pca_summary(df, n_components=min(max(k, 1), df.shape[1]))
             print("\nExplained variance ratio:")
             print(summary["explained_variance_ratio"].to_string())
             print("\nCumulative explained variance:")
             print(summary["cumulative_explained_variance"].to_string())
 
-            beta, alpha, _ = pca_beta_alpha(df, k=k)
+            beta, alpha = rolling_pca_alpha_beta(df, k=k)
             out_dir = root_dir / "outputs" / "latest"
             out_dir.mkdir(parents=True, exist_ok=True)
             beta_path = out_dir / "beta_component_30xT.csv"

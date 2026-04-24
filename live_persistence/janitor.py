@@ -33,6 +33,10 @@ class HourlyParquetJanitor:
             decode_responses=True,
         )
 
+    def close(self) -> None:
+        if self._client is not None:
+            self._client.close()
+
     def _partition_path(self, hour_start: datetime) -> Path:
         day = hour_start.strftime("%Y-%m-%d")
         hour = hour_start.strftime("%H")
@@ -130,25 +134,9 @@ class HourlyParquetJanitor:
             path = self._partition_path(hour_start)
             path.parent.mkdir(parents=True, exist_ok=True)
 
-            previous_unique = 0
-            if path.exists():
-                existing = pd.read_parquet(path)
-                previous_unique = len(
-                    existing.drop_duplicates(subset=["symbol", "bar_end"], keep="last")
-                )
-                combined = pd.concat([existing, part], ignore_index=True)
-            else:
-                combined = part
-
-            before = len(combined)
-            combined = combined.drop_duplicates(subset=["symbol", "bar_end"], keep="last")
-            combined = combined.sort_values(["bar_end", "symbol"], kind="stable").reset_index(drop=True)
-            after = len(combined)
-            deduped_rows += max(0, before - after)
-
-            rows_written += max(0, after - previous_unique)
-
-            combined.to_parquet(path, index=False)
+            # fastparquet is REQUIRED here because engine="pyarrow" does not support append=True in pandas
+            part.to_parquet(path, engine="fastparquet", append=path.exists(), index=False)
+            rows_written += len(part)
             files_written.append(path)
 
         return HourlyPersistenceResult(

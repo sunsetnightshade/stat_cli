@@ -1,10 +1,12 @@
 # Core pipeline
 numpy
 pandas
+yfinance
 scikit-learn
 matplotlib
 seaborn
 pyarrow
+fastparquet
 
 # Dashboard
 streamlit

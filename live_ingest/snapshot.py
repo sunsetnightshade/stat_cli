@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from config import LiveIngestConfig
-from pca_tools import pca_fit_summary
+from pca_engine import rolling_pca_summary
 
 from .analytics import (
     compute_log_returns_vectorized,
@@ -73,7 +73,7 @@ def build_live_snapshot_from_redis(
     )
 
     pca_input = rolling_zscores.tail(max(z_window, pca_components + 2))
-    pca_summary = pca_fit_summary(
+    pca_summary = rolling_pca_summary(
         pca_input,
         n_components=min(pca_components, pca_input.shape[1]),
     )

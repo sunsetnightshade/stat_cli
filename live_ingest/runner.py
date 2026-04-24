@@ -41,18 +41,21 @@ async def _telemetry_printer(service: LiveIngestService, interval_seconds: float
 
 async def _janitor_loop(cfg: LiveIngestConfig, root_dir: Path) -> None:
     janitor = HourlyParquetJanitor(cfg=cfg, root_dir=root_dir)
-    while True:
-        result = await asyncio.to_thread(janitor.persist_recent, hours=cfg.janitor_lookback_hours)
-        payload = {
-            "janitor": {
-                "rows_scanned": result.total_rows_scanned,
-                "rows_written": result.rows_written,
-                "rows_deduped": result.deduped_rows,
-                "files_written": [str(p) for p in result.files_written],
+    try:
+        while True:
+            result = await asyncio.to_thread(janitor.persist_recent, hours=cfg.janitor_lookback_hours)
+            payload = {
+                "janitor": {
+                    "rows_scanned": result.total_rows_scanned,
+                    "rows_written": result.rows_written,
+                    "rows_deduped": result.deduped_rows,
+                    "files_written": [str(p) for p in result.files_written],
+                }
             }
-        }
-        print(json.dumps(payload, indent=2))
-        await asyncio.sleep(cfg.janitor_interval_seconds)
+            print(json.dumps(payload, indent=2))
+            await asyncio.sleep(cfg.janitor_interval_seconds)
+    finally:
+        janitor.close()
 
 
 async def run_live_ingest_forever(cfg: LiveIngestConfig, *, root_dir: Path | None = None) -> None:

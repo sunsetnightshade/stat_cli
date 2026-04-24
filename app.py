@@ -18,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from pca_tools import pca_beta_alpha, pca_fit_summary
+from pca_engine import rolling_pca_alpha_beta, rolling_pca_summary
 from pipeline import build_and_serialize
 from standardizer import render_aligned_matrix_heatmap, render_correlation_heatmap
 
@@ -322,7 +322,7 @@ def _pca_page() -> None:
 
     k = st.slider("Number of components to treat as Beta (k)", min_value=1, max_value=10, value=1)
     n = min(k, standardized.shape[1])
-    summary = pca_fit_summary(standardized, n_components=n)
+    summary = rolling_pca_summary(standardized, n_components=n)
 
     col1, col2 = st.columns(2)
     with col1:
@@ -332,7 +332,7 @@ def _pca_page() -> None:
         st.markdown("**Cumulative explained variance**")
         st.dataframe(summary["cumulative_explained_variance"], use_container_width=True)
 
-    beta, alpha, pca_model = pca_beta_alpha(standardized, k=k)
+    beta, alpha = rolling_pca_alpha_beta(standardized, k=k)
 
     st.markdown(f"**Beta component — first {k} PC(s)**")
     fig_b = render_aligned_matrix_heatmap(beta, heatmap_path=None, title=f"Beta (first {k} PC)")

@@ -43,18 +43,22 @@ class RedisBarProducer:
 
         t0 = time.perf_counter()
         fields = bar.to_redis_fields()
-        await self._client.xadd(
-            self.stream_60,
-            fields,
-            maxlen=self.maxlen_60,
-            approximate=True,
-        )
-        await self._client.xadd(
-            self.stream_500,
-            fields,
-            maxlen=self.maxlen_500,
-            approximate=True,
-        )
+        # Pipeline both XADD commands into a single round-trip.
+        # approximate=True uses O(1) trimming instead of O(N).
+        async with self._client.pipeline(transaction=False) as pipe:
+            pipe.xadd(
+                self.stream_60,
+                fields,
+                maxlen=self.maxlen_60,
+                approximate=True,
+            )
+            pipe.xadd(
+                self.stream_500,
+                fields,
+                maxlen=self.maxlen_500,
+                approximate=True,
+            )
+            await pipe.execute()
         return (time.perf_counter() - t0) * 1000.0
 
     async def close(self) -> None:

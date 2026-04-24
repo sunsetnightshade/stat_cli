@@ -10,7 +10,6 @@ import matplotlib
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import StandardScaler
 
 
 @dataclass(frozen=True)
@@ -128,7 +127,10 @@ def render_correlation_heatmap(
     if standardized.shape[1] < 2:
         raise ValueError("Need at least 2 tickers to compute correlations")
 
-    corr = standardized.corr()
+    # Drop NaN rows (e.g. causal rolling window padding) before correlation
+    # to avoid pairwise-deletion distortion that generates false outliers.
+    valid = standardized.dropna(axis=0, how="any")
+    corr = valid.corr()
     outliers = compute_correlation_outliers(corr, low_threshold=low_threshold)
 
     fig, ax = plt.subplots(figsize=(14, 12))
@@ -192,10 +194,32 @@ def standardize_and_plot_heatmap(
     if not isinstance(matrix.index, pd.DatetimeIndex):
         raise TypeError("matrix index must be a DatetimeIndex")
 
-    # Z-score standardize (column-wise, i.e. per ticker)
-    scaler = StandardScaler()
-    scaled = scaler.fit_transform(matrix.values)
-    standardized = pd.DataFrame(scaled, index=matrix.index, columns=matrix.columns)
+    # Z-score standardize (causal rolling window per ticker)
+    window = 60  # Fixed 60-period rolling window to avoid look-ahead bias
+    data = matrix.values
+    
+    if len(data) < window:
+        # Not enough data for rolling window; fallback to NaNs
+        causal_scaled = np.full_like(data, np.nan, dtype=float)
+        last_mean = np.zeros(data.shape[1])
+        last_scale = np.ones(data.shape[1])
+    else:
+        from numpy.lib.stride_tricks import sliding_window_view
+        view = sliding_window_view(data, window_shape=window, axis=0)
+        rolling_mean = np.mean(view, axis=-1)
+        rolling_std = np.std(view, axis=-1)
+        
+        # Avoid division by zero
+        rolling_std = np.where(rolling_std == 0, 1e-9, rolling_std)
+        z_scores = (data[window - 1:] - rolling_mean) / rolling_std
+        
+        padding = np.full((window - 1, data.shape[1]), np.nan)
+        causal_scaled = np.vstack((padding, z_scores))
+        
+        last_mean = rolling_mean[-1].copy()
+        last_scale = rolling_std[-1].copy()
+
+    standardized = pd.DataFrame(causal_scaled, index=matrix.index, columns=matrix.columns)
 
     heatmap_path = Path(heatmap_path)
     heatmap_path.parent.mkdir(parents=True, exist_ok=True)
@@ -210,8 +234,8 @@ def standardize_and_plot_heatmap(
     plt.close(fig_corr)
 
     params: dict[str, object] = {
-        "mean": scaler.mean_.copy(),
-        "scale": scaler.scale_.copy(),
+        "mean": last_mean,
+        "scale": last_scale,
         "feature_names": list(matrix.columns),
         "correlation_outliers": outliers,   # list of low-corr pairs — useful for debugging
     }

@@ -158,6 +158,7 @@ def verify_storage() -> int:
         (ROOT_DIR / "outputs" / "latest" / "correlation_heatmap.png", "Correlation heatmap"),
         (ROOT_DIR / "outputs" / "latest" / "standardized_matrix_30xT.csv", "Standardized CSV"),
         (ROOT_DIR / "outputs" / "latest" / "aligned_log_returns_30xT.csv", "Log returns CSV"),
+        (ROOT_DIR / "outputs" / "latest" / "correlation_outliers.json", "Correlation outliers"),
         (ROOT_DIR / "outputs" / "latest" / "GUIDE.md", "Output guide"),
         (ROOT_DIR / "outputs" / "latest" / "build_metadata.json", "Build metadata"),
     ]

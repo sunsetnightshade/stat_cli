@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
@@ -38,8 +39,9 @@ def _ts_stamp() -> str:
 
 def to_accessible_30xT_csv(df: pd.DataFrame, path: Path) -> None:
     """Export as 30×T with tickers as rows and dates as columns."""
-    out = df.T.copy()
+    out = df.T
     if isinstance(out.columns, pd.DatetimeIndex):
+        out = out.copy()
         out.columns = out.columns.strftime("%Y-%m-%d")
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -194,6 +196,7 @@ def build_and_serialize(
     end_date: date,
     missing_threshold: float,
     root_dir: Path,
+    enable_legacy_yfinance: bool = True,
 ) -> PipelineArtifacts:
     """
     Full pipeline + serialization protocol.
@@ -219,6 +222,9 @@ def build_and_serialize(
     archive_dir.mkdir(parents=True, exist_ok=True)
 
     build_ts = datetime.now(timezone.utc).isoformat()
+
+    if enable_legacy_yfinance:
+        os.environ["QM_ENABLE_LEGACY_YFINANCE"] = "1"
 
     # ---- Step 1: Archive old latest/ ----
     archived_to = _archive_latest(latest_dir, archive_dir)
@@ -258,10 +264,12 @@ def build_and_serialize(
     scaler_params_path = storage_dir / "scaler_params.pkl"
 
     standardization.standardized.to_pickle(current_matrix_path)
-    standardization.standardized.to_pickle(backup_matrix_path)
     standardization.standardized.to_parquet(current_parquet_path, engine="pyarrow")
-    standardization.standardized.to_parquet(backup_parquet_path, engine="pyarrow")
     pd.to_pickle(standardization.scaler_params, scaler_params_path)
+
+    # Copy to timestamped backup (avoids redundant serialization)
+    shutil.copy2(str(current_matrix_path), str(backup_matrix_path))
+    shutil.copy2(str(current_parquet_path), str(backup_parquet_path))
 
     # ---- CSV exports (all to latest/) ----
     returns_csv = latest_dir / "aligned_log_returns_30xT.csv"
